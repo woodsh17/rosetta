@@ -13,6 +13,8 @@
 #include <devel/init.hh>
 #include <basic/options/keys/in.OptionKeys.gen.hh>
 #include <core/import_pose/import_pose.hh>
+#include <core/scoring/ScoreFunctionFactory.hh>
+#include <core/scoring/ScoreFunction.hh>
 
 int main( int argc, char * argv [] )
 {
@@ -28,6 +30,13 @@ int main( int argc, char * argv [] )
 	
 	//construct a pose object from pdb file
 	core::pose::PoseOP mypose = core::import_pose::pose_from_file( filenames[1] );
+	
+	//initialize a ScorFunction object
+	core::scoring::ScoreFunctionOP sfxn = core::scoring::get_score_function (); ;	
+	//score pose
+	core::Real score = sfxn->score( *mypose );
+	
+	std::cout << "Score: " << score << std::endl;
 	return 0;
 }
 
