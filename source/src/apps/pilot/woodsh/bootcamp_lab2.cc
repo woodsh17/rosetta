@@ -15,6 +15,8 @@
 #include <core/import_pose/import_pose.hh>
 #include <core/scoring/ScoreFunctionFactory.hh>
 #include <core/scoring/ScoreFunction.hh>
+#include <numeric/random/random.hh>
+#include <core/pose/Pose.hh>
 
 int main( int argc, char * argv [] )
 {
@@ -36,7 +38,19 @@ int main( int argc, char * argv [] )
 	//score pose
 	core::Real score = sfxn->score( *mypose );
 	
-	std::cout << "Score: " << score << std::endl;
+	std::cout << "Initial Score: " << score << std::endl;
+
+	core::Real pert1 = numeric::random::gaussian();
+	core::Real pert2 = numeric::random::gaussian();
+	core::Real uniform_random_number = numeric::random::uniform();
+	//grab number of residues in pose
+	core::Size N = mypose->size();
+	core::Size randres = static_cast< core::Size >( uniform_random_number * N +1);
+	core::Real orig_phi = mypose->phi( randres );
+	core::Real orig_psi = mypose->psi( randres );
+	mypose->set_phi( randres, orig_phi + pert1 );
+	mypose->set_psi( randres, orig_psi + pert2 );
+	
 	return 0;
 }
 
