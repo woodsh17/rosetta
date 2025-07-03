@@ -17,6 +17,7 @@
 #include <core/scoring/ScoreFunction.hh>
 #include <numeric/random/random.hh>
 #include <core/pose/Pose.hh>
+#include <protocols/moves/MonteCarlo.hh>
 
 int main( int argc, char * argv [] )
 {
@@ -39,18 +40,23 @@ int main( int argc, char * argv [] )
 	core::Real score = sfxn->score( *mypose );
 	
 	std::cout << "Initial Score: " << score << std::endl;
-
-	core::Real pert1 = numeric::random::gaussian();
-	core::Real pert2 = numeric::random::gaussian();
-	core::Real uniform_random_number = numeric::random::uniform();
-	//grab number of residues in pose
-	core::Size N = mypose->size();
-	core::Size randres = static_cast< core::Size >( uniform_random_number * N +1);
-	core::Real orig_phi = mypose->phi( randres );
-	core::Real orig_psi = mypose->psi( randres );
-	mypose->set_phi( randres, orig_phi + pert1 );
-	mypose->set_psi( randres, orig_psi + pert2 );
 	
+	protocols::moves::MonteCarlo montecarlo = protocols::moves::MonteCarlo( *mypose, *sfxn, 0.5); 
+
+	for ( int i=0; i<100; i++ ) {	
+		core::Real pert1 = numeric::random::gaussian();
+		core::Real pert2 = numeric::random::gaussian();
+		core::Real uniform_random_number = numeric::random::uniform();
+		//grab number of residues in pose
+		core::Size N = mypose->size();
+		core::Size randres = static_cast< core::Size >( uniform_random_number * N +1);
+		core::Real orig_phi = mypose->phi( randres );
+		core::Real orig_psi = mypose->psi( randres );
+		mypose->set_phi( randres, orig_phi + pert1 );
+		mypose->set_psi( randres, orig_psi + pert2 );
+		montecarlo.boltzmann( *mypose );
+		std::cout << "New Score: " << sfxn->score( *mypose ) << std::endl;
+	}
 	return 0;
 }
 
