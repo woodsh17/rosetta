@@ -1115,6 +1115,7 @@ sources = {
         ],
 	
 	 "pilot/woodsh" : [
+		"bootcamp_lab2",
 		#"mp_transition_bfactor",
 		#"set_radius",
 		#"mp_optimize_geometry_params",
