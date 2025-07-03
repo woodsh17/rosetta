@@ -12,6 +12,7 @@
 #include <basic/options/keys/OptionKeys.hh>
 #include <devel/init.hh>
 #include <basic/options/keys/in.OptionKeys.gen.hh>
+#include <core/import_pose/import_pose.hh>
 
 int main( int argc, char * argv [] )
 {
@@ -24,6 +25,9 @@ int main( int argc, char * argv [] )
 		std::cout << "You didn’t provide a PDB file with the -in::file::s option" << std::endl;
 		return 1;
 	}
+	
+	//construct a pose object from pdb file
+	core::pose::PoseOP mypose = core::import_pose::pose_from_file( filenames[1] );
 	return 0;
 }
 
