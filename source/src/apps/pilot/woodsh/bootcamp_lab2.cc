@@ -18,6 +18,10 @@
 #include <numeric/random/random.hh>
 #include <core/pose/Pose.hh>
 #include <protocols/moves/MonteCarlo.hh>
+#include <protocols/moves/PyMOLMover.hh>
+#include <core/pack/task/TaskFactory.hh>
+#include <core/pack/task/PackerTask.hh>
+#include <core/pack/pack_rotamers.hh>
 
 int main( int argc, char * argv [] )
 {
@@ -43,6 +47,9 @@ int main( int argc, char * argv [] )
 	
 	protocols::moves::MonteCarlo montecarlo = protocols::moves::MonteCarlo( *mypose, *sfxn, 0.5); 
 
+	protocols::moves::PyMOLObserverOP the_observer = protocols::moves::AddPyMOLObserver ( *mypose, true, 0 );
+	the_observer->pymol().apply( *mypose );
+
 	for ( int i=0; i<100; i++ ) {	
 		core::Real pert1 = numeric::random::gaussian();
 		core::Real pert2 = numeric::random::gaussian();
@@ -54,6 +61,9 @@ int main( int argc, char * argv [] )
 		core::Real orig_psi = mypose->psi( randres );
 		mypose->set_phi( randres, orig_phi + pert1 );
 		mypose->set_psi( randres, orig_psi + pert2 );
+		core::pack::task::PackerTaskOP repack_task = core::pack::task::TaskFactory::create_packer_task( *mypose );
+		repack_task->restrict_to_repacking();
+		core::pack::pack_rotamers( *mypose, *sfxn, repack_task );
 		montecarlo.boltzmann( *mypose );
 		std::cout << "New Score: " << sfxn->score( *mypose ) << std::endl;
 	}
