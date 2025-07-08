@@ -22,6 +22,7 @@
 #include <core/types.hh>
 #include <core/kinematics/FoldTree.hh>
 #include <core/scoring/dssp/Dssp.hh>
+#include <protocols/bootcamp/fold_tree_from_ss.hh>
 // C++ headers
 
 //Auto Headers
@@ -44,40 +45,8 @@ public:
 		TS_ASSERT( true );
 	}
 	
-	utility::vector1< std::pair< core::Size, core::Size > >
-	identify_secondary_structure_spans( std::string const & ss_string )
-	{
-	  utility::vector1< std::pair< core::Size, core::Size > > ss_boundaries;
-	  core::Size strand_start = -1;
-	  for ( core::Size ii = 0; ii < ss_string.size(); ++ii ) {
-	    if ( ss_string[ ii ] == 'E' || ss_string[ ii ] == 'H'  ) {
-	      if ( int( strand_start ) == -1 ) {
-	        strand_start = ii;
-	      } else if ( ss_string[ii] != ss_string[strand_start] ) {
-	        ss_boundaries.push_back( std::make_pair( strand_start+1, ii ) );
-	        strand_start = ii;
-	      }
-	    } else {
-	      if ( int( strand_start ) != -1 ) {
-	        ss_boundaries.push_back( std::make_pair( strand_start+1, ii ) );
-	        strand_start = -1;
-	      }
-	    }
-	  }
-	  if ( int( strand_start ) != -1 ) {
-	    // last residue was part of a ss-eleemnt                                                                                                                                
-	    ss_boundaries.push_back( std::make_pair( strand_start+1, ss_string.size() ));
-	  }
-	  for ( core::Size ii = 1; ii <= ss_boundaries.size(); ++ii ) {
-	    std::cout << "SS Element " << ii << " from residue "
-	      << ss_boundaries[ ii ].first << " to "
-	      << ss_boundaries[ ii ].second << std::endl;
-	  }
-	  return ss_boundaries;
-	}
-
 	void test_ss_1() {
-	  utility::vector1< std::pair< core::Size, core::Size > > ss_boundaries_1 = identify_secondary_structure_spans("   EEEEE   HHHHHHHH  EEEEE   IGNOR EEEEEE   HHHHHHHHHHH  EEEEE  HHHH   ");
+	  utility::vector1< std::pair< core::Size, core::Size > > ss_boundaries_1 = protocols::bootcamp::identify_secondary_structure_spans("   EEEEE   HHHHHHHH  EEEEE   IGNOR EEEEEE   HHHHHHHHHHH  EEEEE  HHHH   ");
 	  utility::vector1< std::pair < core::Size, core::Size > > spanning_residues = {{4, 8}, {12, 19}, {22, 26}, {36, 41}, {45, 55}, {58, 62}, {65, 68}};
 	  for ( core:: Size i = 1; i <= ss_boundaries_1.size(); i++ ) {
 	    TS_ASSERT_EQUALS(ss_boundaries_1[i].first, spanning_residues[i].first);
@@ -86,7 +55,7 @@ public:
 	} 
 	
 	void test_ss_2() {
-          utility::vector1< std::pair< core::Size, core::Size > > ss_boundaries = identify_secondary_structure_spans("HHHHHHH   HHHHHHHHHHHH      HHHHHHHHHHHHEEEEEEEEEEHHHHHHH EEEEHHH  ");
+          utility::vector1< std::pair< core::Size, core::Size > > ss_boundaries = protocols::bootcamp::identify_secondary_structure_spans("HHHHHHH   HHHHHHHHHHHH      HHHHHHHHHHHHEEEEEEEEEEHHHHHHH EEEEHHH  ");
           utility::vector1< std::pair < core::Size, core::Size > > spanning_residues = {{1, 7}, {11, 22}, {29, 40}, {41, 50}, {51, 57}, {59, 62}, {63, 65}};
           for ( core:: Size i = 1; i <= ss_boundaries.size(); i++ ) { 
             TS_ASSERT_EQUALS(ss_boundaries[i].first, spanning_residues[i].first);
@@ -95,7 +64,7 @@ public:
         }
 
 	void test_ss_3() {
-          utility::vector1< std::pair< core::Size, core::Size > > ss_boundaries = identify_secondary_structure_spans("EEEEEEEEE EEEEEEEE EEEEEEEEE H EEEEE H H H EEEEEEEE");
+          utility::vector1< std::pair< core::Size, core::Size > > ss_boundaries = protocols::bootcamp::identify_secondary_structure_spans("EEEEEEEEE EEEEEEEE EEEEEEEEE H EEEEE H H H EEEEEEEE");
           utility::vector1< std::pair < core::Size, core::Size > > spanning_residues = {{1, 9}, {11, 18}, {20, 28}, {30, 30}, {32, 36}, {38, 38}, {40, 40}, {42, 42}, {44, 51}};
 	  core::Size num_ss_elements(9);
           for ( core::Size i = 1; i <= num_ss_elements; i++ ) {  
@@ -104,75 +73,8 @@ public:
           }
         }
 
-	core::kinematics::FoldTree fold_tree_from_ss(core::pose::Pose const & pose) {
-	  core::scoring::dssp::Dssp dssp(pose);
-	  std::string ss_string = dssp.get_dssp_secstruct();
-	  std::cout << "Secondary structure string of pose from DSSP: " << ss_string << std::endl;
-	  return fold_tree_from_dssp_string(ss_string); 
-	}
-	
-	void add_edge_with_check( core::kinematics::FoldTree & foldtree, core::Size first, core::Size last, core::Size label){
-	  if ( first != last ) foldtree.add_edge( first, last, label );
-	}	
-
-	core::kinematics::FoldTree fold_tree_from_dssp_string(std::string const & ss_string) {
-	  //grab secondary structure boundaries from string
-	  utility::vector1< std::pair< core::Size, core::Size > > ss_boundaries = identify_secondary_structure_spans(ss_string);
-	  core::Size num_ss_elements = ss_boundaries.size();
-	
-	  core::Size jump_number(1); 
-
-	  //create fold tree
-	  core::kinematics::FoldTree foldtree;
-
-	  //find middle residue of first ss element
-	  core::Size first_ss_mid_res = ss_boundaries[1].first + ( (ss_boundaries[1].second - ss_boundaries[1].first) / 2);
-
-	  add_edge_with_check( foldtree, first_ss_mid_res, 1, core::kinematics::Edge::PEPTIDE );
-
-	  //loop over ss elements 
-	  for ( core::Size i = 1; i <= num_ss_elements; i++ ) {
-
-	    core::Size current_ss_first_res = ss_boundaries[i].first;
-            core::Size current_ss_last_res = ss_boundaries[i].second;
-	    core::Size current_ss_mid_res = current_ss_first_res + ( (current_ss_last_res - current_ss_first_res) / 2);
-	
-	    
-	    if (i != 1 ) {
-
-	      //add jump between first ss middle residue and current ss middle residus
-	      add_edge_with_check( foldtree, first_ss_mid_res, current_ss_mid_res, jump_number++ );	   
-
-	      //add jump between first ss middle residue and middle residue of every loop
-	      core::Size mid_loop_res = ss_boundaries[i-1].second + ( (current_ss_first_res - ss_boundaries[i-1].second) / 2);
-	      add_edge_with_check( foldtree, first_ss_mid_res, mid_loop_res, jump_number++ );
-
-	      //add peptide edge from middle of current ss to first of current ss
-              add_edge_with_check( foldtree, current_ss_mid_res, current_ss_first_res, core::kinematics::Edge::PEPTIDE );
-
-	      //once jumps to middle residue of loop has been added, can add peptide edges from middle of loop 
-	      add_edge_with_check( foldtree, mid_loop_res, ss_boundaries[i-1].second+1, core::kinematics::Edge::PEPTIDE );
-
-	      add_edge_with_check( foldtree, mid_loop_res, current_ss_first_res-1, core::kinematics::Edge::PEPTIDE );
- 	    }
-
-	    if (i != num_ss_elements) {
-
-              //add peptide edge from middle of current ss to end of current ss
-              add_edge_with_check( foldtree, current_ss_mid_res, current_ss_last_res, core::kinematics::Edge::PEPTIDE );
-
-            } else {
-
-              //add peptide edge from middle of last ss to end of chain
-              add_edge_with_check( foldtree, current_ss_mid_res, ss_string.size(), core::kinematics::Edge::PEPTIDE );
-
-            }
-	  }
-	  return foldtree;
-	}
-
 	void test_fold_tree_from_dssp_string() {
-	  core::kinematics::FoldTree foldtree = fold_tree_from_dssp_string( "   EEEEEEE    EEEEEEE         EEEEEEEEE    EEEEEEEEEE   HHHHHH         EEEEEEEEE         EEEEE     ");
+	  core::kinematics::FoldTree foldtree = protocols::bootcamp::fold_tree_from_dssp_string( "   EEEEEEE    EEEEEEE         EEEEEEEEE    EEEEEEEEEE   HHHHHH         EEEEEEEEE         EEEEE     ");
 	  core::Size num_edges(38); 
 	  TS_ASSERT_EQUALS( foldtree.size(), num_edges );
 
@@ -233,7 +135,7 @@ public:
 	void test_ss_from_pdb () {
 	  core::pose::Pose pose = create_test_in_pdb_pose();
 	  
-	  core::kinematics::FoldTree foldtree = fold_tree_from_ss( pose );
+	  core::kinematics::FoldTree foldtree = protocols::bootcamp::fold_tree_from_ss( pose );
 	  TS_ASSERT( foldtree.check_fold_tree() );
 	  pose.fold_tree( foldtree ); 
 	}
