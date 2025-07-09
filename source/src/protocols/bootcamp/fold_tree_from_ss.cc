@@ -14,6 +14,7 @@
 #include <core/types.hh>
 #include <core/kinematics/FoldTree.hh>
 #include <core/scoring/dssp/Dssp.hh>
+#include <utility/excn/Exceptions.hh>
 
 // C++ headers
 #include <iostream>
@@ -62,12 +63,6 @@ core::kinematics::FoldTree fold_tree_from_ss(core::pose::Pose const & pose)
   return fold_tree_from_dssp_string(ss_string);
 }
 
-// when adding an edge to a foldtree, checks that it is not trying to add an edge where the first and last residue are equal
-void add_edge_with_check( core::kinematics::FoldTree & foldtree, core::Size first, core::Size last, core::Size label)
-{
-if ( first != last ) foldtree.add_edge( first, last, label );
-}
-
 // Returns a fold tree based on bootcamp from a secondary structure string
 core::kinematics::FoldTree fold_tree_from_dssp_string(std::string const & ss_string)
 {
@@ -83,7 +78,7 @@ core::kinematics::FoldTree fold_tree_from_dssp_string(std::string const & ss_str
   //find middle residue of first ss element
   core::Size first_ss_mid_res = ss_boundaries[1].first + ( (ss_boundaries[1].second - ss_boundaries[1].first) / 2);
 
-  add_edge_with_check( foldtree, first_ss_mid_res, 1, core::kinematics::Edge::PEPTIDE );
+  foldtree.add_edge( first_ss_mid_res, 1, core::kinematics::Edge::PEPTIDE  );
 
   //loop over ss elements
   for ( core::Size i = 1; i <= num_ss_elements; i++ ) {
@@ -96,33 +91,35 @@ core::kinematics::FoldTree fold_tree_from_dssp_string(std::string const & ss_str
     if (i != 1 ) {
 
       //add jump between first ss middle residue and current ss middle residus
-      add_edge_with_check( foldtree, first_ss_mid_res, current_ss_mid_res, jump_number++ );
+      foldtree.add_edge( first_ss_mid_res, current_ss_mid_res, jump_number++  );
 
       //add jump between first ss middle residue and middle residue of every loop
       core::Size mid_loop_res = ss_boundaries[i-1].second + ( (current_ss_first_res - ss_boundaries[i-1].second) / 2);
-      add_edge_with_check( foldtree, first_ss_mid_res, mid_loop_res, jump_number++ );
+      //only add_edge if mid_loop_res is not in last ss_boundaries ie there really is a loop between
+      if (mid_loop_res > ss_boundaries[i-1].second ){
+        foldtree.add_edge( first_ss_mid_res, mid_loop_res, jump_number++ );
+        //once jumps to middle residue of loop has been added, can add peptide edges from middle of loop
+        foldtree.add_edge( mid_loop_res, ss_boundaries[i-1].second+1, core::kinematics::Edge::PEPTIDE );
+        foldtree.add_edge( mid_loop_res, current_ss_first_res-1, core::kinematics::Edge::PEPTIDE );
+      }
 
       //add peptide edge from middle of current ss to first of current ss
-      add_edge_with_check( foldtree, current_ss_mid_res, current_ss_first_res, core::kinematics::Edge::PEPTIDE );
-
-      //once jumps to middle residue of loop has been added, can add peptide edges from middle of loop
-      add_edge_with_check( foldtree, mid_loop_res, ss_boundaries[i-1].second+1, core::kinematics::Edge::PEPTIDE );
-
-      add_edge_with_check( foldtree, mid_loop_res, current_ss_first_res-1, core::kinematics::Edge::PEPTIDE );
+      foldtree.add_edge( current_ss_mid_res, current_ss_first_res, core::kinematics::Edge::PEPTIDE );
     }
 
     if (i != num_ss_elements) {
 
       //add peptide edge from middle of current ss to end of current ss
-      add_edge_with_check( foldtree, current_ss_mid_res, current_ss_last_res, core::kinematics::Edge::PEPTIDE );
+      foldtree.add_edge( current_ss_mid_res, current_ss_last_res, core::kinematics::Edge::PEPTIDE );
 
     } else {
 
       //add peptide edge from middle of last ss to end of chain
-      add_edge_with_check( foldtree, current_ss_mid_res, ss_string.size(), core::kinematics::Edge::PEPTIDE );
+      foldtree.add_edge( current_ss_mid_res, ss_string.size(), core::kinematics::Edge::PEPTIDE );
 
     }
   }
+  foldtree.delete_self_edges();
   return foldtree;
 }
 
