@@ -20,6 +20,7 @@
 #include <core/scoring/ScoreFunction.hh>
 #include <core/scoring/Energies.hh>
 #include <core/pose/Pose.hh>
+#include <core/pose/variant_util.hh>
 #include <core/pack/task/TaskFactory.hh>
 #include <core/pack/task/PackerTask.hh>
 #include <core/pack/pack_rotamers.hh>
@@ -29,6 +30,7 @@
 
 #include <protocols/moves/MonteCarlo.hh>
 #include <protocols/moves/PyMOLMover.hh>
+#include <protocols/bootcamp/fold_tree_from_ss.hh>
 
 #include <numeric/random/random.hh>
 
@@ -50,11 +52,25 @@ int main(int argc, char* argv[])
 	
 	// construct a pose object from pdb file
 	core::pose::PoseOP mypose = core::import_pose::pose_from_file( filenames[1] );
+
+	// update FoldTree based on secondary structure
+	mypose->fold_tree( protocols::bootcamp::fold_tree_from_ss( *mypose ) );
+	if ( mypose->fold_tree().check_fold_tree() ) {
+		std::cout << "FOLDABLE" << std::endl;
+	} else {
+		std::cout << "NOT FOLDABLE" << std::endl;
+	}
+
+	//Add cutpoints to pose
+	core::pose::correctly_add_cutpoint_variants( *mypose );
 	
 	// initialize a ScorFunction object
 	core::scoring::ScoreFunctionOP sfxn = core::scoring::get_score_function (); ;	
 	core::Real score = sfxn->score( *mypose );
 	std::cout << "Initial Score: " << score << std::endl;
+
+	// add linear_chainbreak term to scorefunction
+	sfxn->set_weight(core::scoring::linear_chainbreak, 1.0);
 
 	// Setup MoveMap, allow the backbone and sidechain to move 	
 	core::kinematics::MoveMap mm;
@@ -76,7 +92,7 @@ int main(int argc, char* argv[])
 	core::pose::Pose copy_pose;
 
 	// Random perturbation and Monte Carlo loop
-	for ( int i=0; i<50; i++ ) {
+	for ( int i=0; i<500; i++ ) {
 		// Random perturbation values	
 		core::Real pert1 = numeric::random::gaussian();
 		core::Real pert2 = numeric::random::gaussian();
@@ -109,7 +125,7 @@ int main(int argc, char* argv[])
 		std::cout << "New Score: " << sfxn->score( *mypose ) << std::endl;
 
 		// print out acceptance rate every 100 interations 
-		if (i % 10 == 0) {
+		if (i % 100 == 0) {
 			montecarlo.show_counters();
 			std::cout << "Pose's Energy: " << mypose->energies().total_energy() << std::endl; 
 		}
