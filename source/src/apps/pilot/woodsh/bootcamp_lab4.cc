@@ -134,4 +134,3 @@ int main(int argc, char* argv[])
 	std::cout << "Final Score: " << sfxn->score(*mypose) << std::endl;
 	return 0;
 }
-
